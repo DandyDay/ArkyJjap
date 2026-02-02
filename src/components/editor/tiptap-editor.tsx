@@ -1,20 +1,33 @@
 "use client";
 
-import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
+import { useEditor, EditorContent, TiptapBubbleMenu as BubbleMenu, TiptapFloatingMenu as FloatingMenu, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
+import FloatingMenuExtension from '@tiptap/extension-floating-menu';
+import { all, createLowlight } from "lowlight";
+import SlashCommand from "./extensions/slash-command";
+import suggestion from "./extensions/suggestion";
+import { MathNode } from './extensions/math-node';
+import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// Create a lowlight instance with all languages
+const lowlight = createLowlight(all);
+
+import "./editor-styles.css";
 
 interface TiptapEditorProps {
   content?: JSONContent;
@@ -34,6 +47,8 @@ export function TiptapEditor({
   autofocus = false,
 }: TiptapEditorProps) {
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const AnyBubbleMenu = BubbleMenu as any;
+  const AnyFloatingMenu = FloatingMenu as any;
 
   const handleAIAction = async (type: string) => {
     if (!editor || isAiLoading) return;
@@ -72,8 +87,14 @@ export function TiptapEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [1, 2, 3],
+          levels: [1, 2, 3, 4, 5, 6],
         },
+        codeBlock: false,
+      }),
+      BubbleMenuExtension,
+      FloatingMenuExtension,
+      CodeBlockLowlight.configure({
+        lowlight,
       }),
       Placeholder.configure({
         placeholder,
@@ -94,23 +115,32 @@ export function TiptapEditor({
           class: "rounded-lg max-w-full",
         },
       }),
+      SlashCommand.configure({
+        suggestion,
+      }),
+      MathNode,
     ],
     content,
     editable,
     autofocus,
     editorProps: {
       attributes: {
-        class: `prose prose-sm dark:prose-invert max-w-none focus:outline-none ${className}`,
+        class: `prose prose-base dark:prose-invert max-w-none focus:outline-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 ${className}`,
       },
     },
     onUpdate: ({ editor }) => {
       onChange?.(editor.getJSON());
     },
+    immediatelyRender: false,
   });
 
-  // Sync content from outside
   useEffect(() => {
-    if (editor && content && JSON.stringify(editor.getJSON()) !== JSON.stringify(content)) {
+    if (
+      editor &&
+      content &&
+      !editor.isFocused &&
+      JSON.stringify(editor.getJSON()) !== JSON.stringify(content)
+    ) {
       editor.commands.setContent(content);
     }
   }, [editor, content]);
@@ -128,127 +158,168 @@ export function TiptapEditor({
   }
 
   return (
-    <div className="tiptap-editor">
-      {editable && (
-        <div className="flex flex-wrap gap-1 border-b border-border p-2 mb-2">
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            active={editor.isActive("bold")}
-            title="굵게"
+    <div className="tiptap-editor relative group">
+      {editor && editable && (
+        <>
+          <AnyBubbleMenu
+            editor={editor}
+            tippyOptions={{
+              duration: 150,
+              animation: 'shift-away',
+              zIndex: 100,
+            }}
+            className="flex items-center gap-0.5 p-1 rounded-xl border bg-background/80 backdrop-blur-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 border-white/20 dark:border-white/10"
           >
-            <span className="font-bold">B</span>
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            active={editor.isActive("italic")}
-            title="기울임"
-          >
-            <span className="italic">I</span>
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-            active={editor.isActive("strike")}
-            title="취소선"
-          >
-            <span className="line-through">S</span>
-          </EditorButton>
-          <div className="w-px bg-border mx-1" />
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            active={editor.isActive("heading", { level: 1 })}
-            title="제목 1"
-          >
-            H1
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            active={editor.isActive("heading", { level: 2 })}
-            title="제목 2"
-          >
-            H2
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            active={editor.isActive("heading", { level: 3 })}
-            title="제목 3"
-          >
-            H3
-          </EditorButton>
-          <div className="w-px bg-border mx-1" />
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            active={editor.isActive("bulletList")}
-            title="글머리 기호"
-          >
-            •
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            active={editor.isActive("orderedList")}
-            title="번호 목록"
-          >
-            1.
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleTaskList().run()}
-            active={editor.isActive("taskList")}
-            title="체크리스트"
-          >
-            ☑
-          </EditorButton>
-          <div className="w-px bg-border mx-1" />
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            active={editor.isActive("blockquote")}
-            title="인용"
-          >
-            "
-          </EditorButton>
-          <EditorButton
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            active={editor.isActive("codeBlock")}
-            title="코드 블록"
-          >
-            {"</>"}
-          </EditorButton>
-          <EditorButton
-            onClick={setLink}
-            active={editor.isActive("link")}
-            title="링크"
-          >
-            🔗
-          </EditorButton>
-          <div className="w-px bg-border mx-1" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={`px-2 py-1 text-sm rounded transition-colors flex items-center gap-1 ${isAiLoading
-                    ? "bg-muted text-muted-foreground cursor-wait"
-                    : "hover:bg-muted text-muted-foreground text-brand"
-                  }`}
-                disabled={isAiLoading}
+            <div className="flex items-center gap-0.5 px-0.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold rounded-md transition-all ${isAiLoading
+                      ? "bg-brand/10 text-brand cursor-wait"
+                      : "hover:bg-brand/10 text-brand"
+                      }`}
+                    disabled={isAiLoading}
+                  >
+                    {isAiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    <span>AI</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48 p-1">
+                  <DropdownMenuItem onClick={() => handleAIAction("improve")} className="gap-2 py-2">
+                    <Sparkles className="h-4 w-4 text-brand" />
+                    <span>문장 다듬기</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleAIAction("fix_grammar")} className="gap-2 py-2">
+                    <span className="text-base">📖</span>
+                    <span>맞춤법 교정</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleAIAction("summarize")} className="gap-2 py-2">
+                    <span className="text-base">📝</span>
+                    <span>요약하기</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="w-px h-4 bg-border/50 mx-1" />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="px-2 py-1.5 text-xs font-medium rounded-md hover:bg-muted/50 flex items-center gap-1"
+                  >
+                    {editor.isActive("heading", { level: 1 }) ? "H1" :
+                      editor.isActive("heading", { level: 2 }) ? "H2" :
+                        editor.isActive("heading", { level: 3 }) ? "H3" : "본문"}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[8rem] p-1">
+                  <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className="py-2 text-lg font-bold">
+                    제목 1
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className="py-2 text-md font-bold">
+                    제목 2
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className="py-2 font-bold">
+                    제목 3
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => editor.chain().focus().setParagraph().run()} className="py-2">
+                    본문
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="w-px h-4 bg-border/50 mx-1" />
+
+              <EditorButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                active={editor.isActive("italic")}
+                title="기울임 (Ctrl+I)"
               >
-                {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                <span className="text-xs font-medium">AI</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => handleAIAction("improve")}>
-                ✨ 문장 다듬기
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAIAction("fix_grammar")}>
-                📖 맞춤법 교정
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAIAction("summarize")}>
-                📝 요약하기
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAIAction("translate")}>
-                🌐 번역하기
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                <span className="italic px-1 text-sm font-serif">I</span>
+              </EditorButton>
+              <EditorButton
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                active={editor.isActive("strike")}
+                title="취소선"
+              >
+                <span className="line-through px-1 text-sm">S</span>
+              </EditorButton>
+              <EditorButton
+                onClick={() => editor.chain().focus().toggleCode().run()}
+                active={editor.isActive("code")}
+                title="코드"
+              >
+                <span className="px-1 text-sm font-mono opacity-80">{"<>"}</span>
+              </EditorButton>
+
+              <EditorButton
+                onClick={() => editor.chain().focus().insertContent('$ ').run()}
+                active={false}
+                title="수식"
+              >
+                <span className="px-1 text-sm font-serif">Σ</span>
+              </EditorButton>
+
+              <div className="w-px h-4 bg-border/50 mx-1" />
+
+              <EditorButton
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                active={editor.isActive("bulletList")}
+                title="글머리 기호"
+              >
+                <span className="text-lg leading-none">•</span>
+              </EditorButton>
+
+              <EditorButton
+                onClick={setLink}
+                active={editor.isActive("link")}
+                title="링크 (Ctrl+K)"
+              >
+                <span className="text-sm">🔗</span>
+              </EditorButton>
+            </div>
+          </AnyBubbleMenu>
+
+          <AnyFloatingMenu
+            editor={editor}
+            tippyOptions={{
+              duration: 150,
+              zIndex: 100,
+            }}
+            className="flex items-center gap-1 p-1.5 rounded-xl border bg-background/95 backdrop-blur-md shadow-xl z-50 animate-in fade-in slide-in-from-left-4 duration-300 border-border/50"
+          >
+            <button
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              className="p-2 hover:bg-muted rounded text-xs font-bold"
+              title="제목 1"
+            >
+              H1
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className="p-2 hover:bg-muted rounded text-xs font-bold"
+              title="제목 2"
+            >
+              H2
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              className="p-2 hover:bg-muted rounded text-lg"
+              title="글머리 기호"
+            >
+              •
+            </button>
+            <button
+              onClick={() => editor.chain().focus().toggleTaskList().run()}
+              className="p-2 hover:bg-muted rounded text-brand"
+              title="할 일 목록"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </AnyFloatingMenu>
+        </>
       )}
       <EditorContent editor={editor} />
     </div>
@@ -272,8 +343,8 @@ function EditorButton({
       onClick={onClick}
       title={title}
       className={`px-2 py-1 text-sm rounded transition-colors ${active
-          ? "bg-brand text-white"
-          : "hover:bg-muted text-muted-foreground"
+        ? "bg-brand text-white"
+        : "hover:bg-muted text-muted-foreground"
         }`}
     >
       {children}

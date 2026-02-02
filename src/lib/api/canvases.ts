@@ -3,8 +3,9 @@ import type { Canvas, Note } from "@/lib/types";
 import type { JSONContent } from "@tiptap/react";
 
 // Canvas CRUD
-export async function getCanvases() {
-  const supabase = createClient();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getCanvases(supabaseClient?: any) {
+  const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("canvases")
     .select("*, canvas_tags(tags(*))")
@@ -20,8 +21,9 @@ export async function getCanvases() {
   })) as Canvas[];
 }
 
-export async function getCanvas(id: string) {
-  const supabase = createClient();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getCanvas(id: string, supabaseClient?: any) {
+  const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("canvases")
     .select("*, canvas_tags(tags(*))")
@@ -85,8 +87,9 @@ export async function deleteCanvas(id: string) {
 }
 
 // Notes CRUD
-export async function getNotes(canvasId: string) {
-  const supabase = createClient();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getNotes(canvasId: string, supabaseClient?: any) {
+  const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("notes")
     .select("*, note_tags(tags(*))")
@@ -184,4 +187,51 @@ export async function updateNoteContent(id: string, content: JSONContent) {
 
 export async function bringNoteToFront(id: string) {
   return updateNote(id, { z_index: Date.now() });
+}
+
+// Edges CRUD
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getEdges(canvasId: string, supabaseClient?: any) {
+  const supabase = supabaseClient || createClient();
+  const { data, error } = await supabase
+    .from("edges")
+    .select("*")
+    .eq("canvas_id", canvasId);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createEdge(
+  canvasId: string,
+  sourceId: string,
+  targetId: string,
+  sourceHandle?: string | null,
+  targetHandle?: string | null
+) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("edges")
+    .insert({
+      canvas_id: canvasId,
+      source_id: sourceId,
+      target_id: targetId,
+      source_handle: sourceHandle,
+      target_handle: targetHandle,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteEdge(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("edges")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
 }

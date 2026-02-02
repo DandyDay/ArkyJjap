@@ -56,8 +56,8 @@ export function TagSelector({ selectedTags, onTagToggle, onTagCreate }: TagSelec
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 border-dashed gap-1">
+            <PopoverTrigger asChild suppressHydrationWarning>
+                <Button variant="outline" size="sm" className="h-8 border-dashed gap-1" suppressHydrationWarning>
                     <TagIcon className="h-3.5 w-3.5" />
                     {selectedTags.length > 0 ? (
                         <span className="flex gap-1">
@@ -92,8 +92,8 @@ export function TagSelector({ selectedTags, onTagToggle, onTagCreate }: TagSelec
                                     key={tag.id}
                                     onClick={() => onTagToggle(tag.id)}
                                     className={`flex items-center justify-between px-2 py-1.5 rounded text-sm transition-colors ${isSelected
-                                            ? "bg-brand/10 text-brand"
-                                            : "hover:bg-muted text-foreground"
+                                        ? "bg-brand/10 text-brand"
+                                        : "hover:bg-muted text-foreground"
                                         }`}
                                 >
                                     <div className="flex items-center gap-2">

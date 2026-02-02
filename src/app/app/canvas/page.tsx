@@ -5,9 +5,11 @@ import { Plus, Network, MoreHorizontal, Layout, FileText } from "lucide-react";
 import { formatDistanceToNow } from "@/lib/utils";
 import type { Canvas } from "@/lib/types";
 import { getCanvases } from "@/lib/api/canvases";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function CanvasListPage() {
-  const canvases = await getCanvases();
+  const supabase = await createClient();
+  const canvases = await getCanvases(supabase);
 
   return (
     <div className="flex flex-col p-8">
@@ -65,10 +67,6 @@ export default async function CanvasListPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        // TODO: Show dropdown menu
-                      }}
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>

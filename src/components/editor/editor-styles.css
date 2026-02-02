@@ -28,12 +28,12 @@
   gap: 0.5rem;
 }
 
-.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li>label {
   flex: 0 0 auto;
   margin-top: 0.25rem;
 }
 
-.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li>div {
   flex: 1 1 auto;
 }
 
@@ -90,4 +90,43 @@
 .tiptap-editor .ProseMirror ::selection {
   background: var(--brand);
   color: white;
+}
+
+.tiptap-editor .ProseMirror img {
+  border-radius: 0.5rem;
+  transition: transform 0.2s;
+}
+
+.tiptap-editor .ProseMirror img:hover {
+  transform: scale(1.02);
+}
+
+
+/* Math styling for prosemirror-math */
+.tiptap-editor .math-node {
+  min-width: 1em;
+  min-height: 1em;
+  display: inline-block;
+  padding: 0 4px;
+  cursor: text;
+  background-color: rgba(var(--brand), 0.05);
+  border-radius: 4px;
+}
+
+.tiptap-editor .math-render {
+    display: inline-block;
+}
+
+.tiptap-editor .math-src {
+    display: none;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--brand);
+    background: var(--muted);
+    padding: 0 4px;
+    border-radius: 2px;
+}
+
+.tiptap-editor .math-node.ProseMirror-selectednode {
+  outline: 2px solid var(--brand);
 }

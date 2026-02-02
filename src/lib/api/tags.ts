@@ -51,7 +51,8 @@ export async function getCanvasTags(canvasId: string) {
     .eq("canvas_id", canvasId);
 
   if (error) throw error;
-  return data?.map((item) => item.tags) as Tag[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data?.map((item: any) => item.tags) as Tag[];
 }
 
 export async function addTagToCanvas(canvasId: string, tagId: string) {
@@ -86,7 +87,8 @@ export async function getNoteTags(noteId: string) {
     .eq("note_id", noteId);
 
   if (error) throw error;
-  return data?.map((item) => item.tags) as Tag[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data?.map((item: any) => item.tags) as Tag[];
 }
 
 export async function addTagToNote(noteId: string, tagId: string) {

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CanvasHeader } from "@/components/canvas/canvas-header";
 import { CanvasView } from "@/components/canvas/canvas-view";
 import { DocumentView } from "@/components/canvas/document-view";
+import { CanvasLayout } from "@/components/canvas/canvas-layout";
 import type { Canvas, Note } from "@/lib/types";
 
 interface CanvasPageProps {
@@ -37,6 +37,12 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
     .eq("canvas_id", id)
     .order("z_index", { ascending: true });
 
+  // Fetch edges
+  const { data: edgesData } = await supabase
+    .from("edges")
+    .select("*")
+    .eq("canvas_id", id);
+
   // Transform data to match types
   const canvasWithTags: Canvas = {
     ...canvas,
@@ -49,16 +55,23 @@ export default async function CanvasPage({ params }: CanvasPageProps) {
     note_tags: undefined, // Remove the junction table data
   }));
 
+  const initialEdges = (edgesData || []).map((edge: any) => ({
+    id: edge.id,
+    source: edge.source_id,
+    target: edge.target_id,
+    sourceHandle: edge.source_handle,
+    targetHandle: edge.target_handle,
+    type: "smoothstep", // Default edge type
+    animated: true,
+  }));
+
   return (
-    <div className="flex h-full flex-col">
-      <CanvasHeader canvas={canvasWithTags} />
-      <div className="flex-1">
-        {canvas.view_mode === "canvas" ? (
-          <CanvasView canvasId={id} initialNotes={notesWithTags} />
-        ) : (
-          <DocumentView canvasId={id} initialNotes={notesWithTags} />
-        )}
-      </div>
-    </div>
+    <CanvasLayout canvas={canvasWithTags} notes={notesWithTags}>
+      {canvas.view_mode === "canvas" ? (
+        <CanvasView canvasId={id} initialNotes={notesWithTags} initialEdges={initialEdges} />
+      ) : (
+        <DocumentView canvasId={id} initialNotes={notesWithTags} />
+      )}
+    </CanvasLayout>
   );
 }

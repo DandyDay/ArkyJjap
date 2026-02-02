@@ -157,8 +157,8 @@ export function NoteCard({
   return (
     <div
       ref={cardRef}
-      className={`absolute rounded-xl border shadow-lg transition-shadow ${colorClasses.bg} ${colorClasses.border} ${isSelected ? "ring-2 ring-brand shadow-xl" : ""
-        } ${isDragging ? "cursor-grabbing shadow-2xl" : ""}`}
+      className={`group absolute rounded-xl border shadow-sm hover:shadow-md transition-all bg-card ${isSelected ? "ring-2 ring-brand shadow-xl" : ""
+        } ${isDragging ? "cursor-grabbing shadow-2xl scale-[1.02]" : ""}`}
       style={{
         left: position.x,
         top: position.y,
@@ -169,9 +169,9 @@ export function NoteCard({
       onClick={onSelect}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-inherit">
+      <div className="group/header flex items-center justify-between px-3 pt-2 opacity-0 group-hover:opacity-100 transition-opacity absolute top-0 left-0 right-0 z-10">
         <div
-          className="cursor-grab hover:bg-muted/50 rounded p-1 -ml-1"
+          className="cursor-grab hover:bg-muted/50 rounded p-1"
           onMouseDown={handleDragStart}
         >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -243,7 +243,12 @@ export function NoteCard({
       )}
 
       {/* Content */}
-      <div className="p-3 overflow-auto" style={{ height: size.height - 50 }}>
+      <div
+        className="p-4 pt-10 overflow-auto cursor-text"
+        style={{ height: size.height - 50 }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         <TiptapEditor
           content={note.content}
           onChange={handleContentChange}

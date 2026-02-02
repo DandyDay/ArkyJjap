@@ -28,7 +28,7 @@ create table public.notes (
   width float default 300,
   height float default 200,
   color text default 'default',
-  z_index integer default 0,
+  z_index bigint default 0,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );

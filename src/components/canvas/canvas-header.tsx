@@ -136,8 +136,8 @@ export function CanvasHeader({ canvas }: CanvasHeaderProps) {
 
         {/* More options */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+          <DropdownMenuTrigger asChild suppressHydrationWarning>
+            <Button variant="ghost" size="icon" suppressHydrationWarning>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

@@ -72,3 +72,23 @@ src/
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+## 단축키 가이드 (Keyboard Shortcuts)
+
+### 글로벌 (Global)
+- **단축키 가이드 열기**: `Ctrl + ,`
+- **커맨드 메뉴 열기**: `Ctrl + K`
+- **테마 전환**: `Ctrl + Shift + L`
+- **왼쪽 사이드바 토글**: `Ctrl + \`
+- **오른쪽 사이드바 토글**: `Ctrl + /`
+
+### 캔버스 뷰 (Canvas View)
+- **선택 도구 (Selection)**: `V`
+- **이동 도구 (Hand)**: `H`
+- **텍스트 도구 (Text)**: `T`
+- **줌 인/아웃**: `Ctrl + +/-` (또는 마우스 휠)
+- **캔버스 이동**: `Space` 드래그 또는 우클릭 드래그
+
+### 문서 뷰 (Document View)
+- **커맨드 메뉴 열기**: `Ctrl + K`
+
