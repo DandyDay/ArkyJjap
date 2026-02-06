@@ -25,10 +25,33 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
+interface NoteResult {
+    id: string;
+    title?: string;
+    content?: Record<string, unknown>;
+    color?: string;
+    position_x?: number;
+    position_y?: number;
+}
+
+interface NoteChanges {
+    before?: { title?: string; color?: string; content?: Record<string, unknown> };
+    after?: { title?: string; color?: string; content?: Record<string, unknown> };
+}
+
+interface ToolResult {
+    success: boolean;
+    action?: 'create' | 'update' | 'delete' | 'list';
+    note?: NoteResult;
+    noteId?: string;
+    changes?: NoteChanges;
+    message?: string;
+}
+
 interface CanvasAiChatProps {
     canvasId?: string;
-    onNoteCreated?: (note: any) => void;
-    onNoteUpdated?: (note: any, changes: any) => void;
+    onNoteCreated?: (note: NoteResult) => void;
+    onNoteUpdated?: (note: NoteResult, changes: NoteChanges) => void;
     onNoteDeleted?: (noteId: string) => void;
 }
 
@@ -36,8 +59,24 @@ interface ToolInvocation {
     toolName: string;
     toolCallId: string;
     state: 'partial-call' | 'call' | 'result';
-    args?: any;
-    result?: any;
+    args?: Record<string, unknown>;
+    result?: ToolResult;
+}
+
+interface MessagePart {
+    type: 'text' | 'tool-invocation';
+    text?: string;
+    toolName?: string;
+    toolCallId?: string;
+    state?: 'partial-call' | 'call' | 'result';
+    args?: Record<string, unknown>;
+    result?: ToolResult;
+}
+
+interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    parts?: MessagePart[];
 }
 
 const AI_MODELS = [
@@ -147,15 +186,15 @@ export function CanvasAiChat({
     useEffect(() => {
         messages.forEach((m) => {
             if (m.parts) {
-                m.parts.forEach((part: any) => {
+                (m.parts as MessagePart[] | undefined)?.forEach((part) => {
                     if (part.type === 'tool-invocation' && part.state === 'result') {
                         const result = part.result;
                         if (result?.success) {
-                            if (result.action === 'create' && onNoteCreated) {
+                            if (result.action === 'create' && result.note && onNoteCreated) {
                                 onNoteCreated(result.note);
-                            } else if (result.action === 'update' && onNoteUpdated) {
+                            } else if (result.action === 'update' && result.note && result.changes && onNoteUpdated) {
                                 onNoteUpdated(result.note, result.changes);
-                            } else if (result.action === 'delete' && onNoteDeleted) {
+                            } else if (result.action === 'delete' && result.noteId && onNoteDeleted) {
                                 onNoteDeleted(result.noteId);
                             }
                         }
@@ -227,7 +266,7 @@ export function CanvasAiChat({
         );
     };
 
-    const renderChangesVisualization = (changes: any) => {
+    const renderChangesVisualization = (changes: NoteChanges | undefined) => {
         if (!changes || (!changes.before && !changes.after)) return null;
 
         return (
@@ -258,12 +297,12 @@ export function CanvasAiChat({
         );
     };
 
-    const renderMessageContent = (m: any) => {
+    const renderMessageContent = (m: ChatMessage) => {
         const toolInvocations: ToolInvocation[] = [];
         const textParts: string[] = [];
 
-        m.parts?.forEach((part: any) => {
-            if (part.type === 'text') {
+        m.parts?.forEach((part: MessagePart) => {
+            if (part.type === 'text' && part.text) {
                 textParts.push(part.text);
             } else if (part.type === 'tool-invocation') {
                 toolInvocations.push(part as ToolInvocation);
@@ -477,7 +516,7 @@ export function CanvasAiChat({
                                         </>
                                     )}
                                 </div>
-                                {renderMessageContent(m)}
+                                {renderMessageContent(m as unknown as ChatMessage)}
                             </div>
                         </div>
                     ))}

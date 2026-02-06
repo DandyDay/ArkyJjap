@@ -1,14 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import fs from "fs";
 
 
 export async function updateSession(request: NextRequest) {
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     let supabaseResponse = NextResponse.next({
-
-
       request,
     });
 
@@ -41,9 +37,7 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (error) {
-      if (typeof window === "undefined" && fs && fs.appendFileSync) {
-        fs.appendFileSync("auth_debug.log", `Middleware getUser error: ${error.message} (path: ${request.nextUrl.pathname})\n`);
-      }
+      console.error(`[Auth] getUser error: ${error.message} (path: ${request.nextUrl.pathname})`);
     }
 
 
@@ -64,11 +58,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+
     return supabaseResponse;
-  } catch (err: any) {
-    if (typeof window === "undefined" && fs && fs.appendFileSync) {
-      fs.appendFileSync("auth_debug.log", `Middleware panic: ${err.message}\n${err.stack}\n`);
-    }
+  } catch (err) {
+    console.error("[Auth] Middleware error:", err instanceof Error ? err.message : err);
     return NextResponse.next({ request });
   }
 }

@@ -7,6 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,9 +46,10 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (query.length >= 2) {
+            if (query.length >= 1) {
                 searchUsers();
             } else {
+
                 setSearchResults([]);
             }
         }, 300);
@@ -126,8 +128,8 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
 
     return (
         <Dialog>
-            <DialogTrigger asChild suppressHydrationWarning>
-                <Button variant="outline" size="sm" className="gap-2 h-8" suppressHydrationWarning>
+            <DialogTrigger asChild >
+                <Button variant="outline" size="sm" className="gap-2 h-8" >
                     <Share2 className="h-4 w-4" />
                     공유
                 </Button>
@@ -135,6 +137,9 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>캔버스 공유</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        협업할 사용자를 이메일로 검색하거나 직접 초대할 수 있습니다.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="relative">
@@ -149,13 +154,13 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
                         </div>
 
                         {/* Search Results */}
-                        {searchResults.length > 0 && (
+                        {(searchResults.length > 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query)) && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
                                 {searchResults.map((user) => (
                                     <button
                                         key={user.id}
                                         onClick={() => inviteUser(user.email)}
-                                        className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left"
+                                        className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left border-b border-border/50"
                                     >
                                         <Avatar className="h-8 w-8">
                                             <AvatarImage src={user.avatar_url || ""} />
@@ -168,13 +173,29 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
                                         <UserPlus className="h-4 w-4 text-muted-foreground" />
                                     </button>
                                 ))}
+
+                                {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query) && !searchResults.find(u => u.email === query) && (
+                                    <button
+                                        onClick={() => inviteUser(query)}
+                                        className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left bg-brand/5 group"
+                                    >
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand">
+                                            <UserPlus className="h-4 w-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-brand truncate">"{query}" 초대하기</p>
+                                            <p className="text-xs text-brand/70 truncate">이메일 주소로 직접 초대</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         )}
-                        {query.length >= 2 && !isSearching && searchResults.length === 0 && (
+                        {query.length >= 1 && !isSearching && searchResults.length === 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query) && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 p-3 text-sm text-muted-foreground text-center">
                                 검색 결과가 없습니다.
                             </div>
                         )}
+
                     </div>
 
                     <div className="space-y-3">

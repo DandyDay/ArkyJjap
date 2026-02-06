@@ -4,34 +4,32 @@ import { groq } from '@ai-sdk/groq';
 import { streamText, convertToModelMessages } from 'ai';
 import { tool } from '@ai-sdk/provider-utils';
 import { z } from 'zod';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
-// Use Node.js runtime for Supabase operations
 export const runtime = 'nodejs';
 
 const MODELS = {
-    // New requested models
     'openai/gpt-oss-120b': () => groq('openai/gpt-oss-120b'),
     'qwen/qwen3-32b': () => groq('qwen/qwen3-32b'),
-    // OpenAI models
     'gpt-4o-mini': () => openai('gpt-4o-mini'),
     'gpt-4o': () => openai('gpt-4o'),
-    // Google models
     'gemini-2.0-flash': () => google('gemini-2.0-flash'),
     'gemini-1.5-pro': () => google('gemini-1.5-pro'),
 } as const;
 
 type ModelId = keyof typeof MODELS;
 
-// Initialize Supabase client
-function getSupabaseClient() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
-
 export async function POST(req: Request) {
+    // 인증 확인
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return new Response(
+            JSON.stringify({ error: '인증이 필요합니다.' }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } }
+        );
+    }
+
     const { messages: uiMessages, canvasId, agentMode = false, model: modelId = 'openai/gpt-oss-120b' } = await req.json();
 
     // Check for API keys based on model
@@ -41,26 +39,25 @@ export async function POST(req: Request) {
 
     if (isOpenAIModel && !process.env.OPENAI_API_KEY) {
         return new Response(
-            JSON.stringify({ error: 'OpenAI API 키가 설정되지 않았습니다. .env.local 파일에 OPENAI_API_KEY를 추가해주세요.' }),
+            JSON.stringify({ error: 'OpenAI API 키가 설정되지 않았습니다.' }),
             { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
     }
 
     if (isGoogleModel && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
         return new Response(
-            JSON.stringify({ error: 'Google AI API 키가 설정되지 않았습니다. .env.local 파일에 GOOGLE_GENERATIVE_AI_API_KEY를 추가해주세요.' }),
+            JSON.stringify({ error: 'Google AI API 키가 설정되지 않았습니다.' }),
             { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
     }
 
     if (isGroqModel && !process.env.GROQ_API_KEY) {
         return new Response(
-            JSON.stringify({ error: 'Groq API 키가 설정되지 않았습니다. .env.local 파일에 GROQ_API_KEY를 추가해주세요.' }),
+            JSON.stringify({ error: 'Groq API 키가 설정되지 않았습니다.' }),
             { status: 500, headers: { 'Content-Type': 'application/json' } }
         );
     }
 
-    // Get the model
     const getModel = MODELS[modelId as ModelId];
     if (!getModel) {
         return new Response(
@@ -69,14 +66,10 @@ export async function POST(req: Request) {
         );
     }
 
-    const supabase = getSupabaseClient();
-
-    // Convert UI messages to model messages
     const messages = await convertToModelMessages(uiMessages);
 
-    // Define tools for agent mode using the correct API
     const createNoteTool = tool({
-        description: '캔버스에 새로운 노트를 생성합니다. 사용자가 새 섹션이나 노트 추가를 요청할 때 사용하세요.',
+        description: '캔버스에 새로운 노트를 생성합니다.',
         inputSchema: z.object({
             title: z.string().describe('노트의 제목'),
             content: z.string().describe('노트의 내용 (마크다운 형식 가능)'),
@@ -90,7 +83,6 @@ export async function POST(req: Request) {
             }
 
             try {
-                // Convert markdown content to Tiptap JSON format
                 const tiptapContent = {
                     type: 'doc',
                     content: [
@@ -110,6 +102,7 @@ export async function POST(req: Request) {
                     .from('notes')
                     .insert({
                         canvas_id: canvasId,
+                        user_id: user.id,
                         title,
                         content: tiptapContent,
                         position_x: positionX ?? Math.random() * 600 + 100,
@@ -139,7 +132,7 @@ export async function POST(req: Request) {
     });
 
     const updateNoteTool = tool({
-        description: '기존 노트의 내용을 수정합니다. 사용자가 특정 노트의 수정을 요청할 때 사용하세요.',
+        description: '기존 노트의 내용을 수정합니다.',
         inputSchema: z.object({
             noteId: z.string().describe('수정할 노트의 ID'),
             title: z.string().optional().describe('새로운 제목'),
@@ -148,11 +141,11 @@ export async function POST(req: Request) {
         }),
         execute: async ({ noteId, title, content, color }) => {
             try {
-                // First get the current note
                 const { data: currentNote, error: fetchError } = await supabase
                     .from('notes')
                     .select('*')
                     .eq('id', noteId)
+                    .eq('canvas_id', canvasId)
                     .single();
 
                 if (fetchError) throw fetchError;
@@ -191,6 +184,7 @@ export async function POST(req: Request) {
                     .from('notes')
                     .update(updates)
                     .eq('id', noteId)
+                    .eq('canvas_id', canvasId)
                     .select()
                     .single();
 
@@ -218,11 +212,11 @@ export async function POST(req: Request) {
         }),
         execute: async ({ noteId }) => {
             try {
-                // Get note info before deletion for confirmation
                 const { data: note, error: fetchError } = await supabase
                     .from('notes')
                     .select('title')
                     .eq('id', noteId)
+                    .eq('canvas_id', canvasId)
                     .single();
 
                 if (fetchError) throw fetchError;
@@ -230,7 +224,8 @@ export async function POST(req: Request) {
                 const { error } = await supabase
                     .from('notes')
                     .delete()
-                    .eq('id', noteId);
+                    .eq('id', noteId)
+                    .eq('canvas_id', canvasId);
 
                 if (error) throw error;
 
@@ -248,7 +243,7 @@ export async function POST(req: Request) {
     });
 
     const listNotesTool = tool({
-        description: '현재 캔버스의 모든 노트 목록을 가져옵니다. 노트 수정이나 삭제 전에 ID를 확인할 때 사용하세요.',
+        description: '현재 캔버스의 모든 노트 목록을 가져옵니다.',
         inputSchema: z.object({}),
         execute: async () => {
             if (!canvasId) {
@@ -281,7 +276,6 @@ export async function POST(req: Request) {
         }
     });
 
-    // System prompt for agent mode
     const systemPrompt = agentMode
         ? `당신은 Arky 캔버스 어시스턴트입니다. 사용자의 캔버스에서 노트를 생성, 수정, 삭제할 수 있는 능력이 있습니다.
 

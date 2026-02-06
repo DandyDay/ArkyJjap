@@ -15,7 +15,7 @@ import SlashCommand from "./extensions/slash-command";
 import suggestion from "./extensions/suggestion";
 import { MathNode } from './extensions/math-node';
 import "katex/dist/katex.min.css";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Sparkles, Loader2, Plus } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,10 +24,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import "./editor-styles.css";
+
 // Create a lowlight instance with all languages
 const lowlight = createLowlight(all);
-
-import "./editor-styles.css";
 
 interface TiptapEditorProps {
   content?: JSONContent;
@@ -38,6 +38,44 @@ interface TiptapEditorProps {
   autofocus?: boolean;
 }
 
+// Define extensions outside or memoize them to prevent "Duplicate extension names" warnings
+const getExtensions = (placeholder: string) => [
+  StarterKit.configure({
+    heading: {
+      levels: [1, 2, 3, 4, 5, 6],
+    },
+    codeBlock: false,
+  }),
+  BubbleMenuExtension,
+  FloatingMenuExtension,
+  CodeBlockLowlight.configure({
+    lowlight,
+  }),
+  Placeholder.configure({
+    placeholder,
+    emptyEditorClass: "is-editor-empty",
+  }),
+  TaskList,
+  TaskItem.configure({
+    nested: true,
+  }),
+  Link.configure({
+    openOnClick: false,
+    HTMLAttributes: {
+      class: "text-brand underline cursor-pointer",
+    },
+  }),
+  Image.configure({
+    HTMLAttributes: {
+      class: "rounded-lg max-w-full",
+    },
+  }),
+  SlashCommand.configure({
+    suggestion,
+  }),
+  MathNode,
+];
+
 export function TiptapEditor({
   content,
   onChange,
@@ -47,8 +85,28 @@ export function TiptapEditor({
   autofocus = false,
 }: TiptapEditorProps) {
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const AnyBubbleMenu = BubbleMenu as any;
-  const AnyFloatingMenu = FloatingMenu as any;
+  // Tiptap의 BubbleMenu/FloatingMenu는 내부적으로 editor prop을 받지만,
+  // 타입 정의가 불완전하므로 ComponentType으로 캐스팅
+  const AnyBubbleMenu = BubbleMenu as React.ComponentType<Record<string, unknown>>;
+  const AnyFloatingMenu = FloatingMenu as React.ComponentType<Record<string, unknown>>;
+
+  const extensions = useMemo(() => getExtensions(placeholder), [placeholder]);
+
+  const editor = useEditor({
+    extensions,
+    content,
+    editable,
+    autofocus,
+    editorProps: {
+      attributes: {
+        class: `prose prose-base dark:prose-invert max-w-none focus:outline-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 ${className}`,
+      },
+    },
+    onUpdate: ({ editor }) => {
+      onChange?.(editor.getJSON());
+    },
+    immediatelyRender: false,
+  });
 
   const handleAIAction = async (type: string) => {
     if (!editor || isAiLoading) return;
@@ -83,64 +141,11 @@ export function TiptapEditor({
     }
   };
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6],
-        },
-        codeBlock: false,
-      }),
-      BubbleMenuExtension,
-      FloatingMenuExtension,
-      CodeBlockLowlight.configure({
-        lowlight,
-      }),
-      Placeholder.configure({
-        placeholder,
-        emptyEditorClass: "is-editor-empty",
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-brand underline cursor-pointer",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-lg max-w-full",
-        },
-      }),
-      SlashCommand.configure({
-        suggestion,
-      }),
-      MathNode,
-    ],
-    content,
-    editable,
-    autofocus,
-    editorProps: {
-      attributes: {
-        class: `prose prose-base dark:prose-invert max-w-none focus:outline-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 ${className}`,
-      },
-    },
-    onUpdate: ({ editor }) => {
-      onChange?.(editor.getJSON());
-    },
-    immediatelyRender: false,
-  });
-
+  // content가 변경되었을 때만 에디터를 업데이트 (포커스 중이면 무시)
+  const contentRef = useRef(content);
   useEffect(() => {
-    if (
-      editor &&
-      content &&
-      !editor.isFocused &&
-      JSON.stringify(editor.getJSON()) !== JSON.stringify(content)
-    ) {
+    if (editor && content && !editor.isFocused && content !== contentRef.current) {
+      contentRef.current = content;
       editor.commands.setContent(content);
     }
   }, [editor, content]);

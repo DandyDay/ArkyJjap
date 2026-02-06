@@ -25,12 +25,14 @@ interface NoteNodeData {
     onUpdate: (id: string, updates: Partial<Note>) => void;
     onDelete: (id: string) => void;
     onBringToFront: (id: string) => void;
+    remoteSelectors?: { id: string; name: string; color: string }[];
 }
 
 interface NoteNodeProps {
     data: NoteNodeData;
     selected: boolean;
 }
+
 
 function NoteNode({ data, selected }: NoteNodeProps) {
     const { note, onUpdate, onDelete, onBringToFront } = data;
@@ -85,6 +87,26 @@ function NoteNode({ data, selected }: NoteNodeProps) {
                     onBringToFront?.(note.id);
                 }}
             >
+                {/* Remote Selection Indicators */}
+                {data.remoteSelectors?.map((selector, i) => (
+                    <div
+                        key={selector.id}
+                        className="absolute inset-0 rounded-xl pointer-events-none ring-2 animate-in fade-in zoom-in duration-300"
+                        style={{
+                            boxShadow: `0 0 0 2px ${selector.color}`,
+                            zIndex: 10 + i
+                        }}
+
+                    >
+                        <div
+                            className="absolute -top-6 left-0 px-1.5 py-0.5 rounded text-[10px] font-bold text-white whitespace-nowrap"
+                            style={{ backgroundColor: selector.color }}
+                        >
+                            {selector.name}
+                        </div>
+                    </div>
+                ))}
+
                 {/* Header - Drag Handle Area */}
                 {/* We add 'drag-handle' class to specific elements if we want to limit drag area, 
             or use dragHandle prop in ReactFlow node definition. 

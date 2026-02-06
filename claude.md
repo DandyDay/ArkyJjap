@@ -1,94 +1,174 @@
-# Arky Clone Project - Claude Instructions
+# CLAUDE.md
 
-## 필수 참고 문서
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-- **Arky 공식 문서**: https://arky.so/docs/index
-- 구현 시 반드시 이 문서를 참고할 것
+## Project Overview
 
-## 디자인 시스템 (arky.so 기준)
+Arky Clone - A knowledge canvas platform inspired by Arky.so, featuring Tiptap editor-based note-taking with visual canvas workspace and real-time collaboration.
 
-### Typography
-- **Primary**: Inter (400, 500, 600, 700, 900)
-- **Display**: Inter Display
-- **Supporting**: Baskervville, Roboto Mono, Satoshi
+## Development Commands
 
-### Color Palette
-- Dark background: `#08090a`, `#0f0f10`
-- Light background: `#fff`, `#f7f8f8`
-- Accent blue: `#188ef6`
-- Text dark: `#1d1d1f`
-- Text light: `#e4e6e1`, `#edebe8`
+```bash
+# Development
+npm run dev              # Start development server (localhost:3000)
+npm run build            # Build for production
+npm run start            # Start production server
+npm run lint             # Run ESLint
 
-### Breakpoints
-- Desktop: 1200px+
-- Tablet: 810px–1199px
-- Mobile: <810px
+# Database (requires Supabase CLI login)
+npm run db:link          # Link to Supabase project
+npm run db:push          # Push migrations to database
+```
 
-## 개발 워크플로우
+**IMPORTANT**: Before first run, apply database migrations via [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md). Easiest method: copy `supabase/migrations/001_initial_schema.sql` content and run in Supabase Dashboard SQL Editor.
 
-### 스킬 사용 (필수)
-사용 가능한 스킬을 적극적으로 활용:
-- `ui-ux-pro-max`: UI/UX 디자인 작업 시
-- `context7`: 라이브러리 문서 조회 시
-- `supabase-postgres-best-practices`: Supabase/Postgres 작업 시
-- `next-best-practices`: Next.js 코드 작성 시
-- `vercel-react-best-practices`: React 성능 최적화 시
-- `tailwind-design-system`: Tailwind 디자인 시스템 구축 시
+## Tech Stack
 
-### 코드 리뷰 (세션 종료 시 필수)
-**매 세션이 끝날 때마다 코드 리뷰 에이전트에게 검사를 받고 피드백을 반영할 것.**
-
-리뷰 요청 시 포함할 내용:
-1. 변경된 파일 목록
-2. 주요 변경 사항 요약
-3. 성능/보안 관련 우려 사항
-
-## 기술 스택
-
-- **Framework**: Next.js 16 (App Router)
-- **Database/Auth**: Supabase
-- **Styling**: Tailwind CSS + shadcn/ui
+- **Framework**: Next.js 16 (App Router, React 19)
+- **Database/Auth**: Supabase (PostgreSQL + Row Level Security)
+- **Editor**: Tiptap (rich text, JSONContent format)
+- **Canvas**: @xyflow/react (ReactFlow v12)
+- **AI**: Vercel AI SDK with multiple providers (OpenAI, Google Gemini, Groq)
+- **Styling**: Tailwind CSS 4 + shadcn/ui
 - **Theme**: next-themes (dark/light mode)
 - **Icons**: Lucide React
+- **Real-time**: Supabase Realtime (collaboration, presence)
 
-## 프로젝트 구조
+## Architecture Patterns
 
+### Supabase Client Pattern
+- **Client-side** (`@/lib/supabase/client`): Singleton browser client for client components
+- **Server-side** (`@/lib/supabase/server`): Cookie-based SSR client for Server Components/Actions
+- **Middleware** (`@/lib/supabase/middleware`): Session refresh for `/app` routes
+- All tables use RLS policies scoped to `auth.uid()`
+
+### Canvas Architecture
+- **ReactFlow** manages node positioning, dragging, zooming, panning
+- Notes are ReactFlow nodes with `type: "note"`, custom `NoteNode` component
+- Position/size stored in `notes` table (position_x, position_y, width, height)
+- Z-index managed via timestamp-based z_index field
+- Edges stored in `edges` table, synced with ReactFlow edges state
+
+### Real-time Collaboration
+- Uses Supabase Realtime channels (presence + broadcast)
+- Each user gets random color on join (`useRealtimeCanvas` hook)
+- Syncs: cursor positions, node movements, selections
+- Components: `RemoteCursor`, `Collaborators`
+- Canvas members managed via `canvas_members` table + API routes
+
+### AI Integration
+- Route: `src/app/api/chat/route.ts`
+- Supports multiple models: GPT-4o, Gemini, Groq models
+- **Agent Mode**: Provides tools (createNote, updateNote, deleteNote, listNotes) for canvas manipulation
+- Uses Vercel AI SDK's `streamText` with `convertToModelMessages`
+- Content converted to Tiptap JSON format before DB insert
+
+### API Routes Structure
 ```
-src/
-├── app/                    # Next.js App Router
-│   ├── (marketing)/        # 랜딩, 문서 등
-│   ├── app/                # 인증된 사용자 영역
-│   └── auth/               # 인증 관련
-├── components/
-│   ├── ui/                 # shadcn/ui 컴포넌트
-│   └── ...                 # 커스텀 컴포넌트
-└── lib/
-    └── supabase/           # Supabase 클라이언트
+src/app/api/
+├── chat/route.ts                    # AI chat with agent mode
+├── ai/text/route.ts                 # Text generation
+├── shell-context/route.ts           # Shell context for AI
+├── users/search/route.ts            # User search for collaboration
+└── canvases/[id]/members/route.ts   # Canvas member management
 ```
 
-## 환경 변수
+### Data Flow
+1. **Editor** (Tiptap) → JSONContent → Supabase
+2. **Canvas** (ReactFlow) → Node changes → Supabase + Realtime broadcast
+3. **AI** → Tool calls → Supabase mutations → UI updates
+
+## Environment Variables
+
+Required in `.env.local`:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Supabase (Required)
+NEXT_PUBLIC_SUPABASE_URL=https://[project].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJh...
+SUPABASE_SERVICE_ROLE_KEY=eyJh...  # For server-side admin ops
+
+# AI Providers (Optional - based on usage)
+OPENAI_API_KEY=sk-...              # For GPT models
+GOOGLE_GENERATIVE_AI_API_KEY=...   # For Gemini models
+GROQ_API_KEY=gsk_...               # For Groq models
 ```
 
-## 단축키 가이드 (Keyboard Shortcuts)
+## Import Aliases
 
-### 글로벌 (Global)
-- **단축키 가이드 열기**: `Ctrl + ,`
-- **커맨드 메뉴 열기**: `Ctrl + K`
-- **테마 전환**: `Ctrl + Shift + L`
-- **왼쪽 사이드바 토글**: `Ctrl + \`
-- **오른쪽 사이드바 토글**: `Ctrl + /`
+`@/*` maps to `src/*` (configured in `tsconfig.json`)
 
-### 캔버스 뷰 (Canvas View)
-- **선택 도구 (Selection)**: `V`
-- **이동 도구 (Hand)**: `H`
-- **텍스트 도구 (Text)**: `T`
-- **줌 인/아웃**: `Ctrl + +/-` (또는 마우스 휠)
-- **캔버스 이동**: `Space` 드래그 또는 우클릭 드래그
+## Key Features & UI Patterns
 
-### 문서 뷰 (Document View)
-- **커맨드 메뉴 열기**: `Ctrl + K`
+### Canvas View
+- Double-click canvas to create note
+- Drag notes by header (drag-handle class)
+- Resize via NodeResizer component
+- Tools: Select (V), Hand (H), Text (T)
+- Zoom: Ctrl+Scroll or zoom controls (0.5x-2x)
+- Pan: Space+Drag or Right-click drag
 
+### Editor (Tiptap)
+- Stores content as JSONContent (ProseMirror format)
+- Extensions: StarterKit, CodeBlock (lowlight), Image, Link, TaskList, Placeholder
+- Bubble menu for formatting (appears on selection)
+- Auto-save on content change
+
+### Tags System
+- Many-to-many via `canvas_tags`, `note_tags` junction tables
+- Inline creation from search/selector
+- Color-coded with 8 theme options
+
+### Design System (arky.so reference)
+
+**Typography**: Inter (primary), Inter Display, Baskervville, Roboto Mono, Satoshi
+**Colors**:
+- Dark: `#08090a`, `#0f0f10`
+- Light: `#fff`, `#f7f8f8`
+- Accent: `#188ef6`
+- Text: `#1d1d1f` (dark), `#e4e6e1`, `#edebe8` (light)
+
+**Breakpoints**: Desktop 1200px+, Tablet 810-1199px, Mobile <810px
+
+## Keyboard Shortcuts
+
+### Global
+- `Ctrl+K`: Command menu
+- `Ctrl+Shift+L`: Toggle theme
+- `Ctrl+\`: Toggle left sidebar
+- `Ctrl+/`: Toggle right sidebar
+
+### Canvas
+- `V`: Selection tool
+- `H`: Hand tool
+- `T`: Text tool
+- `Ctrl++/-`: Zoom in/out
+- `Space+Drag`: Pan canvas
+
+## Development Workflow
+
+### Recommended Skills
+Use these skills when working on specific areas:
+- `ui-ux-pro-max`: UI/UX design tasks
+- `context7`: Library documentation lookup
+- `supabase-postgres-best-practices`: Database/auth work
+- `next-best-practices`: Next.js code
+- `vercel-react-best-practices`: React optimization
+- `tailwind-design-system`: Design system work
+
+### Code Review (End of Session)
+**매 세션이 끝날 때마다 코드 리뷰 에이전트에게 검사를 받고 피드백을 반영할 것.**
+
+Review should include:
+1. Changed files list
+2. Summary of changes
+3. Performance/security concerns
+
+## Reference Documentation
+
+- **Arky Official**: https://arky.so/docs/index (구현 시 필수 참고)
+- Next.js: https://nextjs.org/docs
+- Supabase: https://supabase.com/docs
+- Tiptap: https://tiptap.dev
+- ReactFlow: https://reactflow.dev
+- shadcn/ui: https://ui.shadcn.com

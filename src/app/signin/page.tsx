@@ -2,7 +2,8 @@
 
 import { Suspense, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,24 +34,35 @@ function GoogleIcon() {
   );
 }
 
+type AuthMode = "magic-link" | "password-login" | "password-signup";
+
 function SignInContent() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("password-login");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
 
   const searchParams = useSearchParams();
+  const router = useRouter();
 
-  // Supabase 클라이언트 - 에러 처리 포함
+  // Supabase 클라이언트 생성 (렌더 중 setState 호출 방지)
   const supabase = useMemo(() => {
     try {
       return createClient();
     } catch {
-      setIsSupabaseConfigured(false);
       return null;
     }
   }, []);
+
+  // Supabase 클라이언트 생성 실패 시 상태 업데이트
+  useEffect(() => {
+    if (!supabase) {
+      setIsSupabaseConfigured(false);
+    }
+  }, [supabase]);
 
   // URL 에러 파라미터 처리
   useEffect(() => {
@@ -60,7 +72,7 @@ function SignInContent() {
     }
   }, [searchParams]);
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
+  const handleMagicLinkSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
 
@@ -86,6 +98,51 @@ function SignInContent() {
       }
     } catch {
       setMessage({ type: "error", text: "네트워크 오류가 발생했습니다. 다시 시도해주세요." });
+    }
+
+    setIsLoading(false);
+  };
+
+  const handlePasswordAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      if (authMode === "password-signup") {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (error) {
+          setMessage({ type: "error", text: error.message });
+        } else {
+          setMessage({
+            type: "success",
+            text: "회원가입이 완료되었습니다. 이메일 인증이 필요한 경우 이메일을 확인해주세요.",
+          });
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          setMessage({ type: "error", text: "이메일 또는 비밀번호가 올바르지 않습니다." });
+        } else {
+          router.push("/app");
+          router.refresh();
+        }
+      }
+    } catch {
+      setMessage({ type: "error", text: "네트워크 오류가 발생했습니다." });
     }
 
     setIsLoading(false);
@@ -151,9 +208,13 @@ function SignInContent() {
             <span className="text-lg font-bold text-background" aria-hidden="true">A</span>
           </div>
         </Link>
-        <h1 className="mt-6 text-2xl font-bold tracking-tight">로그인</h1>
+        <h1 className="mt-6 text-2xl font-bold tracking-tight">
+          {authMode === "password-signup" ? "계정 만들기" : "로그인"}
+        </h1>
         <p className="mt-2 text-muted-foreground">
-          계정에 로그인하고 지식 캔버스를 시작하세요
+          {authMode === "password-signup"
+            ? "Arky와 함께 지식 캔버스를 시작하세요"
+            : "계정에 로그인하고 지식 캔버스를 시작하세요"}
         </p>
       </div>
 
@@ -181,7 +242,7 @@ function SignInContent() {
           </div>
         </div>
 
-        <form onSubmit={handleEmailSignIn} className="space-y-4">
+        <form onSubmit={authMode === "magic-link" ? handleMagicLinkSignIn : handlePasswordAuth} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">이메일</Label>
             <Input
@@ -195,24 +256,90 @@ function SignInContent() {
               autoComplete="email"
             />
           </div>
+
+          {authMode !== "magic-link" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">비밀번호</Label>
+                {authMode === "password-login" && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setAuthMode("magic-link")}
+                  >
+                    비밀번호를 잊으셨나요? (매직 링크)
+                  </button>
+                )}
+              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-12"
+                autoComplete={authMode === "password-signup" ? "new-password" : "current-password"}
+              />
+            </div>
+          )}
+
           <Button type="submit" className="h-12 w-full" disabled={isLoading}>
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              "매직 링크로 로그인"
+              authMode === "password-signup"
+                ? "회원가입"
+                : authMode === "password-login"
+                  ? "로그인"
+                  : "매직 링크 보내기"
             )}
           </Button>
+
+          <div className="text-center">
+            {authMode === "password-login" ? (
+              <p className="text-sm text-muted-foreground">
+                계정이 없으신가요?{" "}
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("password-signup")}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  회원가입
+                </button>
+              </p>
+            ) : authMode === "password-signup" ? (
+              <p className="text-sm text-muted-foreground">
+                이미 계정이 있으신가요?{" "}
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("password-login")}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  로그인
+                </button>
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAuthMode("password-login")}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                비밀번호로 로그인하기
+              </button>
+            )}
+          </div>
         </form>
+
 
         {message && (
           <div
             role="alert"
             aria-live="polite"
-            className={`rounded-lg p-4 text-sm ${
-              message.type === "success"
-                ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                : "bg-destructive/10 text-destructive"
-            }`}
+            className={`rounded-lg p-4 text-sm ${message.type === "success"
+              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+              : "bg-destructive/10 text-destructive"
+              }`}
           >
             {message.text}
           </div>

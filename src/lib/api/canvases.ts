@@ -1,10 +1,19 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Canvas, Note } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Canvas, Note, Tag } from "@/lib/types";
 import type { JSONContent } from "@tiptap/react";
 
+// Supabase 쿼리 결과의 조인된 row 타입
+interface CanvasRow extends Omit<Canvas, 'tags'> {
+  canvas_tags?: { tags: Tag }[];
+}
+
+interface NoteRow extends Omit<Note, 'tags'> {
+  note_tags?: { tags: Tag }[];
+}
+
 // Canvas CRUD
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getCanvases(supabaseClient?: any) {
+export async function getCanvases(supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("canvases")
@@ -14,15 +23,14 @@ export async function getCanvases(supabaseClient?: any) {
 
   if (error) throw error;
 
-  return data.map((canvas: any) => ({
+  return data.map((canvas: CanvasRow) => ({
     ...canvas,
-    tags: canvas.canvas_tags?.map((ct: any) => ct.tags) || [],
+    tags: canvas.canvas_tags?.map((ct) => ct.tags) || [],
     canvas_tags: undefined
   })) as Canvas[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getCanvas(id: string, supabaseClient?: any) {
+export async function getCanvas(id: string, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("canvases")
@@ -32,9 +40,10 @@ export async function getCanvas(id: string, supabaseClient?: any) {
 
   if (error) throw error;
 
+  const row = data as CanvasRow;
   return {
-    ...data,
-    tags: (data as any).canvas_tags?.map((ct: any) => ct.tags) || [],
+    ...row,
+    tags: row.canvas_tags?.map((ct) => ct.tags) || [],
     canvas_tags: undefined
   } as Canvas;
 }
@@ -87,8 +96,7 @@ export async function deleteCanvas(id: string) {
 }
 
 // Notes CRUD
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getNotes(canvasId: string, supabaseClient?: any) {
+export async function getNotes(canvasId: string, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("notes")
@@ -98,9 +106,9 @@ export async function getNotes(canvasId: string, supabaseClient?: any) {
 
   if (error) throw error;
 
-  return data.map((note: any) => ({
+  return data.map((note: NoteRow) => ({
     ...note,
-    tags: note.note_tags?.map((nt: any) => nt.tags) || [],
+    tags: note.note_tags?.map((nt) => nt.tags) || [],
     note_tags: undefined
   })) as Note[];
 }
@@ -190,8 +198,7 @@ export async function bringNoteToFront(id: string) {
 }
 
 // Edges CRUD
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getEdges(canvasId: string, supabaseClient?: any) {
+export async function getEdges(canvasId: string, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient || createClient();
   const { data, error } = await supabase
     .from("edges")
