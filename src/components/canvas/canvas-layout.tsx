@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { CanvasSidebar } from "./canvas-sidebar";
 import { CanvasHeader } from "./canvas-header";
 import { ShortcutsDialog } from "./shortcuts-dialog";
@@ -12,6 +13,7 @@ import {
     Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { CanvasAiChat } from "./canvas-ai-chat";
+import { cn } from "@/lib/utils";
 
 interface CanvasLayoutProps {
     canvas: Canvas;
@@ -20,6 +22,7 @@ interface CanvasLayoutProps {
 }
 
 export function CanvasLayout({ canvas, notes, children }: CanvasLayoutProps) {
+    const router = useRouter();
     const [showLeftSidebar, setShowLeftSidebar] = useState(true);
     const [showRightSidebar, setShowRightSidebar] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
@@ -71,6 +74,22 @@ export function CanvasLayout({ canvas, notes, children }: CanvasLayoutProps) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [theme, setTheme, mounted]);
 
+    // Callback handlers for AI actions
+    const handleNoteCreated = (note: any) => {
+        console.log('Note created by AI:', note);
+        router.refresh();
+    };
+
+    const handleNoteUpdated = (note: any, changes: any) => {
+        console.log('Note updated by AI:', note, changes);
+        router.refresh();
+    };
+
+    const handleNoteDeleted = (noteId: string) => {
+        console.log('Note deleted by AI:', noteId);
+        router.refresh();
+    };
+
     if (!mounted) {
         return (
             <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
@@ -86,49 +105,46 @@ export function CanvasLayout({ canvas, notes, children }: CanvasLayoutProps) {
         <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
             <CanvasHeader canvas={canvas} />
 
-            <div className="flex-1 overflow-hidden relative">
-                <PanelGroup
-                    id="canvas-layout-group"
-                    orientation="horizontal"
-                    className="h-full w-full"
+            <div className="flex-1 flex overflow-hidden relative">
+                {/* Left Sidebar with Animation */}
+                <div
+                    className={cn(
+                        "h-full bg-background border-r border-border transition-all duration-300 ease-in-out overflow-hidden",
+                        showLeftSidebar ? "w-[260px] min-w-[200px] max-w-[400px]" : "w-0 min-w-0"
+                    )}
+                    style={{
+                        opacity: showLeftSidebar ? 1 : 0,
+                        transform: showLeftSidebar ? 'translateX(0)' : 'translateX(-20px)'
+                    }}
                 >
-                    {/* Left Sidebar - 목차 */}
-                    {showLeftSidebar && (
-                        <>
-                            <Panel
-                                id="left-sidebar"
-                                defaultSize="260px"
-                                minSize="200px"
-                                maxSize="400px"
-                                className="bg-background border-r border-border"
-                            >
-                                <CanvasSidebar notes={notes} className="h-full" />
-                            </Panel>
-                            <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-brand/30 active:bg-brand/50 transition-colors cursor-col-resize" />
-                        </>
-                    )}
+                    <CanvasSidebar notes={notes} className="h-full w-[260px]" />
+                </div>
 
-                    {/* Main Content */}
-                    <Panel id="main-content" className="relative overflow-hidden bg-muted/5">
-                        {children}
-                    </Panel>
+                {/* Main Content */}
+                <div className="flex-1 relative overflow-hidden bg-muted/5">
+                    {children}
+                </div>
 
-                    {/* Right Sidebar - AI Chat */}
-                    {showRightSidebar && (
-                        <>
-                            <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-brand/30 active:bg-brand/50 transition-colors cursor-col-resize" />
-                            <Panel
-                                id="right-sidebar"
-                                defaultSize="360px"
-                                minSize="280px"
-                                maxSize="500px"
-                                className="bg-background border-l border-border"
-                            >
-                                <CanvasAiChat />
-                            </Panel>
-                        </>
+                {/* Right Sidebar with Animation */}
+                <div
+                    className={cn(
+                        "h-full bg-background border-l border-border transition-all duration-300 ease-in-out overflow-hidden",
+                        showRightSidebar ? "w-[360px] min-w-[280px] max-w-[500px]" : "w-0 min-w-0"
                     )}
-                </PanelGroup>
+                    style={{
+                        opacity: showRightSidebar ? 1 : 0,
+                        transform: showRightSidebar ? 'translateX(0)' : 'translateX(20px)'
+                    }}
+                >
+                    <div className="h-full w-[360px]">
+                        <CanvasAiChat
+                            canvasId={canvas.id}
+                            onNoteCreated={handleNoteCreated}
+                            onNoteUpdated={handleNoteUpdated}
+                            onNoteDeleted={handleNoteDeleted}
+                        />
+                    </div>
+                </div>
             </div>
 
             <ShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />

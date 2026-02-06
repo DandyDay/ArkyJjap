@@ -1,4 +1,4 @@
-import { Extension, Node, mergeAttributes } from '@tiptap/core';
+import { Extension, Node, mergeAttributes, InputRule } from '@tiptap/core';
 import {
     mathPlugin,
     mathSelectPlugin,
@@ -28,8 +28,9 @@ export const MathInline = Node.create({
     },
 
     addInputRules() {
+        // Cast to unknown first to avoid type incompatibility between prosemirror-math and tiptap
         return [
-            makeInlineMathInputRule(REGEX_INLINE_MATH_DOLLARS, this.type)
+            makeInlineMathInputRule(REGEX_INLINE_MATH_DOLLARS, this.type) as unknown as InputRule
         ];
     }
 });
@@ -54,8 +55,9 @@ export const MathDisplay = Node.create({
     },
 
     addInputRules() {
+        // Cast to unknown first to avoid type incompatibility between prosemirror-math and tiptap
         return [
-            makeBlockMathInputRule(REGEX_BLOCK_MATH_DOLLARS, this.type)
+            makeBlockMathInputRule(REGEX_BLOCK_MATH_DOLLARS, this.type) as unknown as InputRule
         ];
     }
 });
