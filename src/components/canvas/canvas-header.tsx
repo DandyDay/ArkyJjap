@@ -25,6 +25,8 @@ import { updateCanvas, deleteCanvas } from "@/lib/api/canvases";
 import { addTagToCanvas, removeTagFromCanvas } from "@/lib/api/tags";
 import type { Canvas } from "@/lib/types";
 import { TagSelector } from "@/components/tags/tag-selector";
+import { ShareDialog } from "./share-dialog";
+
 
 interface CanvasHeaderProps {
   canvas: Canvas;
@@ -133,6 +135,8 @@ export function CanvasHeader({ canvas }: CanvasHeaderProps) {
             문서
           </Button>
         </div>
+
+        <ShareDialog canvasId={canvas.id} />
 
         {/* More options */}
         <DropdownMenu>
