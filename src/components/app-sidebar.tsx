@@ -17,7 +17,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Home,
   Network,
-  FileText,
   Search,
   Settings,
   Plus,
@@ -32,7 +31,6 @@ import type { User } from "@supabase/supabase-js";
 const navItems = [
   { href: "/app", icon: Home, label: "홈" },
   { href: "/app/canvas", icon: Network, label: "캔버스" },
-  { href: "/app/notes", icon: FileText, label: "노트" },
   { href: "/app/search", icon: Search, label: "검색" },
 ];
 

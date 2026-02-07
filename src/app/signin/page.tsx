@@ -39,6 +39,7 @@ type AuthMode = "magic-link" | "password-login" | "password-signup";
 function SignInContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("password-login");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -117,6 +118,7 @@ function SignInContent() {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: { full_name: name },
           },
         });
 
@@ -243,6 +245,22 @@ function SignInContent() {
         </div>
 
         <form onSubmit={authMode === "magic-link" ? handleMagicLinkSignIn : handlePasswordAuth} className="space-y-4">
+          {authMode === "password-signup" && (
+            <div className="space-y-2">
+              <Label htmlFor="name">이름</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="홍길동"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="h-12"
+                autoComplete="name"
+              />
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="email">이메일</Label>
             <Input

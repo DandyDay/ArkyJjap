@@ -14,6 +14,7 @@ import { all, createLowlight } from "lowlight";
 import SlashCommand from "./extensions/slash-command";
 import suggestion from "./extensions/suggestion";
 import { MathNode } from './extensions/math-node';
+import { RemoteCursors, remoteCursorsPluginKey, type RemoteTextCursor } from './extensions/remote-cursors';
 import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Sparkles, Loader2, Plus } from "lucide-react";
@@ -32,6 +33,8 @@ const lowlight = createLowlight(all);
 interface TiptapEditorProps {
   content?: JSONContent;
   onChange?: (content: JSONContent) => void;
+  onCursorChange?: (from: number, to: number) => void;
+  remoteCursors?: RemoteTextCursor[];
   placeholder?: string;
   editable?: boolean;
   className?: string;
@@ -74,11 +77,14 @@ const getExtensions = (placeholder: string) => [
     suggestion,
   }),
   MathNode,
+  RemoteCursors,
 ];
 
 export function TiptapEditor({
   content,
   onChange,
+  onCursorChange,
+  remoteCursors,
   placeholder = "내용을 입력하세요...",
   editable = true,
   className = "",
@@ -92,6 +98,9 @@ export function TiptapEditor({
 
   const extensions = useMemo(() => getExtensions(placeholder), [placeholder]);
 
+  // 로컬 편집 시각 추적 (에코백 방어)
+  const lastLocalEditRef = useRef(0);
+
   const editor = useEditor({
     extensions,
     content,
@@ -103,6 +112,7 @@ export function TiptapEditor({
       },
     },
     onUpdate: ({ editor }) => {
+      lastLocalEditRef.current = Date.now();
       onChange?.(editor.getJSON());
     },
     immediatelyRender: false,
@@ -141,14 +151,42 @@ export function TiptapEditor({
     }
   };
 
-  // content가 변경되었을 때만 에디터를 업데이트 (포커스 중이면 무시)
-  const contentRef = useRef(content);
+  // 외부 content 변경 수신 (원격 사용자의 변경사항 반영)
+  // 로컬 편집 후 500ms 이내에는 에코백 방지를 위해 무시
   useEffect(() => {
-    if (editor && content && !editor.isFocused && content !== contentRef.current) {
-      contentRef.current = content;
-      editor.commands.setContent(content);
-    }
+    if (!editor || !content) return;
+    const timeSinceLocalEdit = Date.now() - lastLocalEditRef.current;
+    if (timeSinceLocalEdit < 500) return;
+    if (editor.isFocused) return;
+
+    editor.commands.setContent(content);
   }, [editor, content]);
+
+  // 텍스트 커서 위치 변경 시 브로드캐스트
+  useEffect(() => {
+    if (!editor || !onCursorChange) return;
+
+    const handleSelectionUpdate = () => {
+      const { from, to } = editor.state.selection;
+      onCursorChange(from, to);
+    };
+
+    editor.on("selectionUpdate", handleSelectionUpdate);
+    editor.on("focus", handleSelectionUpdate);
+
+    return () => {
+      editor.off("selectionUpdate", handleSelectionUpdate);
+      editor.off("focus", handleSelectionUpdate);
+    };
+  }, [editor, onCursorChange]);
+
+  // 원격 사용자의 텍스트 커서 위치 데코레이션 업데이트
+  useEffect(() => {
+    if (!editor || !remoteCursors) return;
+
+    const tr = editor.state.tr.setMeta(remoteCursorsPluginKey, remoteCursors);
+    editor.view.dispatch(tr);
+  }, [editor, remoteCursors]);
 
   const setLink = useCallback(() => {
     if (!editor) return;

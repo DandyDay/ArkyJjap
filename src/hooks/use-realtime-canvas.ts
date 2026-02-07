@@ -13,6 +13,15 @@ export interface RemoteUser {
     selection?: string[];
 }
 
+export interface RemoteTextCursorInfo {
+    userId: string;
+    noteId: string;
+    from: number;
+    to: number;
+    name: string;
+    color: string;
+}
+
 interface PresencePayload {
     email?: string;
     name?: string;
@@ -29,9 +38,18 @@ interface BroadcastPayload {
     position?: { x: number; y: number };
 }
 
+interface TextCursorPayload {
+    userId: string;
+    noteId: string;
+    from: number;
+    to: number;
+}
+
 export function useRealtimeCanvas(canvasId: string) {
     const supabase = createClient();
     const [users, setUsers] = useState<Record<string, RemoteUser>>({});
+    const usersRef = useRef<Record<string, RemoteUser>>({});
+    const [textCursors, setTextCursors] = useState<Record<string, RemoteTextCursorInfo>>({});
     const channelRef = useRef<RealtimeChannel | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -78,6 +96,7 @@ export function useRealtimeCanvas(canvasId: string) {
                     }
                 });
                 setUsers(processedUsers);
+                usersRef.current = processedUsers;
             })
             .on("presence", { event: "join" }, () => {
                 // join handled by sync
@@ -107,6 +126,24 @@ export function useRealtimeCanvas(canvasId: string) {
             })
             .on("broadcast", { event: "node-move" }, () => {
                 // Handled in CanvasView
+            })
+            .on("broadcast", { event: "text-cursor" }, ({ payload }: { payload: TextCursorPayload }) => {
+                setTextCursors((prev) => {
+                    const currentUsers = usersRef.current;
+                    const user = currentUsers[payload.userId];
+                    if (!user) return prev;
+                    return {
+                        ...prev,
+                        [payload.userId]: {
+                            userId: payload.userId,
+                            noteId: payload.noteId,
+                            from: payload.from,
+                            to: payload.to,
+                            name: user.name,
+                            color: user.color,
+                        },
+                    };
+                });
             })
             .subscribe(async (status: string) => {
                 if (status === "SUBSCRIBED") {
@@ -166,11 +203,56 @@ export function useRealtimeCanvas(canvasId: string) {
         });
     }, [currentUser]);
 
+    // 노트 콘텐츠 변경을 원격 사용자에게 브로드캐스트 (쓰로틀링 포함)
+    const contentThrottleRef = useRef<Record<string, number>>({});
+    const broadcastContent = useCallback((noteId: string, content: unknown) => {
+        if (!channelRef.current || !currentUser) return;
+
+        const now = Date.now();
+        const lastSent = contentThrottleRef.current[noteId] || 0;
+        if (now - lastSent < 80) return; // 80ms 쓰로틀
+        contentThrottleRef.current[noteId] = now;
+
+        channelRef.current.send({
+            type: "broadcast",
+            event: "content-update",
+            payload: {
+                userId: currentUser.id,
+                noteId,
+                content,
+            }
+        });
+    }, [currentUser]);
+
+    // 텍스트 커서 위치 브로드캐스트 (50ms 쓰로틀)
+    const textCursorThrottleRef = useRef(0);
+    const broadcastTextCursor = useCallback((noteId: string, from: number, to: number) => {
+        if (!channelRef.current || !currentUser) return;
+
+        const now = Date.now();
+        if (now - textCursorThrottleRef.current < 50) return;
+        textCursorThrottleRef.current = now;
+
+        channelRef.current.send({
+            type: "broadcast",
+            event: "text-cursor",
+            payload: {
+                userId: currentUser.id,
+                noteId,
+                from,
+                to,
+            }
+        });
+    }, [currentUser]);
+
     return {
         users,
+        textCursors,
         updateCursor,
         updateSelection,
         updateNodePosition,
+        broadcastContent,
+        broadcastTextCursor,
         channel: channelRef.current,
         currentUser,
         userColor: userColor.current

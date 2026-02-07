@@ -34,11 +34,16 @@ interface ShareDialogProps {
 }
 
 export function ShareDialog({ canvasId }: ShareDialogProps) {
+    const [mounted, setMounted] = useState(false);
     const [query, setQuery] = useState("");
     const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
     const [members, setMembers] = useState<CanvasMember[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         fetchMembers();
@@ -125,6 +130,15 @@ export function ShareDialog({ canvasId }: ShareDialogProps) {
             toast.error("멤버 삭제 중 오류가 발생했습니다.");
         }
     };
+
+    if (!mounted) {
+        return (
+            <Button variant="outline" size="sm" className="gap-2 h-8">
+                <Share2 className="h-4 w-4" />
+                공유
+            </Button>
+        );
+    }
 
     return (
         <Dialog>

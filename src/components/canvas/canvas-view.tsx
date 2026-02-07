@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
 import NoteNode from "./note-node";
 import { useRealtimeCanvas } from "@/hooks/use-realtime-canvas";
+import type { RemoteTextCursor } from "@/components/editor/extensions/remote-cursors";
 import { RemoteCursor } from "./remote-cursor";
 import { Collaborators } from "./collaborators";
 import { createClient } from "@/lib/supabase/client";
@@ -65,7 +66,10 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
   const { screenToFlowPosition, setCenter, zoomIn, zoomOut, getViewport } = useReactFlow();
   const { zoom } = useViewport();
 
-  const { users, updateCursor, updateSelection, updateNodePosition, channel, currentUser, userColor } = useRealtimeCanvas(canvasId);
+  const { users, textCursors, updateCursor, updateSelection, updateNodePosition, broadcastContent, broadcastTextCursor, channel, currentUser, userColor } = useRealtimeCanvas(canvasId);
+
+  // 로컬에서 편집 중인 노트 ID → 마지막 편집 시각
+  const localEditTimesRef = useRef<Map<string, number>>(new Map());
 
   // Sync server changes (DB Subscription)
   useEffect(() => {
@@ -75,6 +79,21 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
       setNodes((nds) => nds.map((node) => {
         if (node.id === payload.nodeId) {
           return { ...node, position: payload.position };
+        }
+        return node;
+      }));
+    });
+
+    // 원격 사용자의 콘텐츠 변경 수신 (postgres_changes보다 빠름)
+    channel.on("broadcast", { event: "content-update" }, ({ payload }) => {
+      const { noteId, content } = payload;
+      setNodes((nds) => nds.map((node) => {
+        if (node.id === noteId) {
+          const currentNote = node.data.note as Note;
+          return {
+            ...node,
+            data: { ...node.data, note: { ...currentNote, content } },
+          };
         }
         return node;
       }));
@@ -107,11 +126,23 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
           const updatedNote = payload.new as unknown as Note;
           setNodes((nds) => nds.map((node) => {
             if (node.id === updatedNote.id) {
+              // 로컬에서 최근 편집된 노트는 content 에코백 방지
+              const lastLocalEdit = localEditTimesRef.current.get(updatedNote.id) || 0;
+              const isLocallyEditing = Date.now() - lastLocalEdit < 1500;
+              const currentNote = node.data.note as Note;
+
               return {
                 ...node,
                 position: { x: updatedNote.position_x, y: updatedNote.position_y },
                 style: { ...node.style, width: updatedNote.width, height: updatedNote.height },
-                data: { ...node.data, note: updatedNote },
+                data: {
+                  ...node.data,
+                  note: {
+                    ...updatedNote,
+                    // 로컬 편집 중이면 content는 현재 로컬 상태 유지
+                    content: isLocallyEditing ? currentNote.content : updatedNote.content,
+                  }
+                },
                 zIndex: updatedNote.z_index,
               };
             }
@@ -131,7 +162,13 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
     };
   }, [canvasId, setNodes, channel]);
 
+  // 커서 브로드캐스트 쓰로틀링 (50ms 간격)
+  const lastCursorBroadcastRef = useRef(0);
   const onMouseMove = useCallback((event: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastCursorBroadcastRef.current < 50) return;
+    lastCursorBroadcastRef.current = now;
+
     const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
     updateCursor(position.x, position.y);
   }, [screenToFlowPosition, updateCursor]);
@@ -153,7 +190,33 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
     return map;
   }, [users]);
 
+  // 노트별 원격 텍스트 커서 맵
+  const remoteTextCursorsMap = useMemo(() => {
+    const map: Record<string, RemoteTextCursor[]> = {};
+    Object.values(textCursors).forEach(tc => {
+      if (!map[tc.noteId]) map[tc.noteId] = [];
+      map[tc.noteId].push({
+        userId: tc.userId,
+        name: tc.name,
+        color: tc.color,
+        from: tc.from,
+        to: tc.to,
+      });
+    });
+    return map;
+  }, [textCursors]);
+
+  const handleCursorChange = useCallback((noteId: string, from: number, to: number) => {
+    broadcastTextCursor(noteId, from, to);
+  }, [broadcastTextCursor]);
+
   const handleUpdateNote = useCallback(async (id: string, updates: Partial<Note>) => {
+    // content 변경 시 로컬 편집 시각 기록 + 원격 브로드캐스트
+    if (updates.content) {
+      localEditTimesRef.current.set(id, Date.now());
+      broadcastContent(id, updates.content);
+    }
+
     setNodes((nds) => nds.map((node) => {
       if (node.id === id) {
         const currentNote = node.data.note as Note;
@@ -177,7 +240,7 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
     } catch (error) {
       console.error("Failed to update note:", error);
     }
-  }, [setNodes]);
+  }, [setNodes, broadcastContent]);
 
   const handleDeleteNote = useCallback(async (id: string) => {
     setNodes((nds) => nds.filter((n) => n.id !== id));
@@ -207,10 +270,12 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
         onUpdate: handleUpdateNote,
         onDelete: handleDeleteNote,
         onBringToFront: handleBringToFront,
+        onCursorChange: handleCursorChange,
         remoteSelectors: remoteSelectorsMap[node.id] || [],
+        remoteCursors: remoteTextCursorsMap[node.id] || [],
       },
     })));
-  }, [handleUpdateNote, handleDeleteNote, handleBringToFront, setNodes, remoteSelectorsMap]);
+  }, [handleUpdateNote, handleDeleteNote, handleBringToFront, handleCursorChange, setNodes, remoteSelectorsMap, remoteTextCursorsMap]);
 
   // Sync initialNotes changes from server
   useEffect(() => {
@@ -368,10 +433,6 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
         onCreateNote={addNoteAtCenter}
       />
 
-      {Object.values(users).map((user) => (
-        user?.id ? <RemoteCursor key={user.id} user={user} /> : null
-      ))}
-
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -441,6 +502,11 @@ function CanvasFlow({ canvasId, initialNotes, initialEdges = [] }: CanvasViewPro
           </div>
         </Panel>
       </ReactFlow>
+
+      {/* 원격 커서: ReactFlow 위에 렌더링되도록 DOM 순서상 뒤에 배치 */}
+      {Object.values(users).map((user) => (
+        user?.id ? <RemoteCursor key={user.id} user={user} /> : null
+      ))}
     </div>
   );
 }

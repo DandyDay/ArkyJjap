@@ -130,3 +130,35 @@
 .tiptap-editor .math-node.ProseMirror-selectednode {
   outline: 2px solid var(--brand);
 }
+
+/* Remote text cursor */
+.remote-text-cursor {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  word-break: normal;
+  display: inline;
+  border-left-width: 2px;
+  border-left-style: solid;
+}
+
+.remote-text-cursor-label {
+  position: absolute;
+  bottom: 100%;
+  left: -1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  padding: 1px 5px;
+  border-radius: 3px 3px 3px 0;
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1.4;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.remote-text-selection {
+  border-radius: 2px;
+}

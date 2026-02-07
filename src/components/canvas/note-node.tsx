@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Handle, Position, NodeResizer } from "@xyflow/react";
 import { useRouter } from "next/navigation";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
+import type { RemoteTextCursor } from "@/components/editor/extensions/remote-cursors";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -25,7 +26,9 @@ interface NoteNodeData {
     onUpdate: (id: string, updates: Partial<Note>) => void;
     onDelete: (id: string) => void;
     onBringToFront: (id: string) => void;
+    onCursorChange?: (noteId: string, from: number, to: number) => void;
     remoteSelectors?: { id: string; name: string; color: string }[];
+    remoteCursors?: RemoteTextCursor[];
 }
 
 interface NoteNodeProps {
@@ -35,7 +38,7 @@ interface NoteNodeProps {
 
 
 function NoteNode({ data, selected }: NoteNodeProps) {
-    const { note, onUpdate, onDelete, onBringToFront } = data;
+    const { note, onUpdate, onDelete, onBringToFront, onCursorChange } = data;
     const router = useRouter();
 
     const colorClasses = NOTE_COLORS[note.color as NoteColor] || NOTE_COLORS.default;
@@ -91,7 +94,7 @@ function NoteNode({ data, selected }: NoteNodeProps) {
                 {data.remoteSelectors?.map((selector, i) => (
                     <div
                         key={selector.id}
-                        className="absolute inset-0 rounded-xl pointer-events-none ring-2 animate-in fade-in zoom-in duration-300"
+                        className="absolute inset-0 rounded-xl pointer-events-none ring-2"
                         style={{
                             boxShadow: `0 0 0 2px ${selector.color}`,
                             zIndex: 10 + i
@@ -178,6 +181,8 @@ function NoteNode({ data, selected }: NoteNodeProps) {
                     <TiptapEditor
                         content={note.content}
                         onChange={handleContentChange}
+                        onCursorChange={onCursorChange ? (from, to) => onCursorChange(note.id, from, to) : undefined}
+                        remoteCursors={data.remoteCursors}
                         placeholder="노트를 작성하세요..."
                         className="min-h-full"
                     />

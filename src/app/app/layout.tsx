@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
+import { GlobalCommandMenu } from "@/components/global-command-menu";
 
 export default async function AppLayout({
   children,
@@ -20,6 +21,7 @@ export default async function AppLayout({
     <div className="flex h-screen overflow-hidden">
       <AppSidebar user={user} />
       <main className="flex-1 overflow-auto">{children}</main>
+      <GlobalCommandMenu />
     </div>
   );
 }
